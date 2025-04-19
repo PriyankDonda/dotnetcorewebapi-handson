@@ -29,15 +29,42 @@ git clone https://github.com/yourusername/Handson.git
 cd Handson
 ```
 
-3. Restore dependencies
+3. Configure the application
+   - Copy `appsettings.Example.json` to `appsettings.json`
+   - Update the configuration values in `appsettings.json` with your settings:
+     - Database connection string
+     - JWT secret key and settings
+     - Other environment-specific configurations
+
+4. Restore dependencies
 ```bash
 dotnet restore
 ```
 
-4. Run the application
+5. Run the application
 ```bash
 dotnet run
 ```
+
+## Configuration
+
+The application requires the following configuration in `appsettings.json`:
+
+```json
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "your_database_connection_string"
+  },
+  "Jwt": {
+    "Key": "your_jwt_secret_key",
+    "Issuer": "your_issuer",
+    "Audience": "your_audience",
+    "ExpirationInMinutes": 60
+  }
+}
+```
+
+**Important**: Never commit your actual `appsettings.json` file to source control as it may contain sensitive information.
 
 ## API Endpoints
 
