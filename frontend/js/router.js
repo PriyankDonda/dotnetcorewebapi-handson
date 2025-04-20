@@ -45,85 +45,163 @@ const Router = {
     // Route handlers
     routes: {
         '/login': {
+            template: 'loginForm',
             init: () => {
-                if (AuthService.isLoggedIn()) {
-                    window.location.hash = '#/dashboard';
-                } else {
-                    UIService.showLoginForm();
-                }
+                UIService.showLoginForm();
             }
         },
         '/register': {
+            template: 'registerForm',
             init: () => {
-                if (AuthService.isLoggedIn()) {
-                    window.location.hash = '#/dashboard';
-                } else {
-                    UIService.showRegisterForm();
+                UIService.showRegisterForm();
+            }
+        },
+        '/profile': {
+            template: 'profile',
+            init: async () => {
+                try {
+                    const profile = await AuthService.getProfile();
+                    UIService.showProfile(profile);
+                } catch (error) {
+                    if (error.message.includes('Access denied')) {
+                        UIService.showNotification(error.message, 'error');
+                        window.location.hash = '#/dashboard';
+                        return;
+                    }
+                    window.location.hash = '#/login';
                 }
             }
         },
         '/dashboard': {
-            guard: 'auth',
-            async init() {
+            template: 'dashboard',
+            init: async () => {
                 try {
                     const profile = await AuthService.getProfile();
-                    if (!profile) {
-                        throw new Error('Failed to load profile');
-                    }
                     UIService.showDashboard(profile);
                 } catch (error) {
-                    throw new Error('Failed to load dashboard: ' + error.message);
+                    if (error.message.includes('Access denied')) {
+                        UIService.showNotification(error.message, 'error');
+                        window.location.hash = '#/profile';
+                        return;
+                    }
+                    window.location.hash = '#/login';
                 }
             }
         },
         '/users': {
-            guard: 'auth',
-            async init() {
+            template: 'userList',
+            init: async () => {
                 try {
                     const users = await AuthService.getAllUsers();
-                    if (!Array.isArray(users)) {
-                        throw new Error('Invalid users data received');
-                    }
                     UIService.showUserList(users);
                 } catch (error) {
-                    throw new Error('Failed to load users: ' + error.message);
+                    if (error.message.includes('Access denied')) {
+                        UIService.showNotification(error.message, 'error');
+                        // Prevent navigation by restoring the previous URL
+                        window.history.replaceState(null, '', `#${this.currentRoute || '/dashboard'}`);
+                        return;
+                    }
+                    window.location.hash = '#/login';
                 }
             }
         }
     },
 
+    // List of public routes that don't require access control
+    publicRoutes: ['/login', '/register'],
+
     // Initialize router
     init() {
-        window.addEventListener('hashchange', () => this.handleRoute());
-        window.addEventListener('load', () => this.handleRoute());
+        // Handle initial route
+        this.handleRoute();
+
+        // Handle route changes
+        window.addEventListener('hashchange', (event) => {
+            const newPath = window.location.hash.slice(1);
+            
+            // If trying to access users page, check access first
+            if (newPath === '/users') {
+                // Prevent the default navigation
+                event.preventDefault();
+                
+                // Check access without changing URL
+                AuthService.getAllUsers()
+                    .then(users => {
+                        UIService.showUserList(users);
+                        this.currentRoute = '/users';
+                    })
+                    .catch(error => {
+                        if (error.message.includes('Access denied')) {
+                            UIService.showNotification(error.message, 'error');
+                            // Keep the current URL
+                            window.history.replaceState(null, '', `#${this.currentRoute || '/dashboard'}`);
+                        } else {
+                            window.location.hash = '#/login';
+                        }
+                    });
+                return;
+            }
+            
+            this.handleRoute();
+        });
+    },
+
+    // Helper method to get the appropriate service method for a route
+    getServiceMethodForRoute(route) {
+        const routeServiceMap = {
+            '/profile': AuthService.getProfile,
+            '/dashboard': AuthService.getProfile,
+            '/users': AuthService.getAllUsers
+            // New routes will automatically be protected
+        };
+        return routeServiceMap[route];
+    },
+
+    // Helper method to update UI based on route and data
+    updateUIForRoute(route, data) {
+        const routeUIMap = {
+            '/profile': UIService.showProfile,
+            '/dashboard': UIService.showDashboard,
+            '/users': UIService.showUserList
+            // New routes will automatically be protected
+        };
+        const updateMethod = routeUIMap[route];
+        if (updateMethod) {
+            updateMethod(data);
+        }
     },
 
     // Handle route change
     async handleRoute() {
         try {
-            this.showLoading();
+            UIService.showLoading();
+            
             const hash = window.location.hash || '#/login';
-            const route = hash.slice(1);
-            this.currentRoute = route;
-
-            const routeConfig = this.routes[route];
-            if (!routeConfig) {
+            const path = hash.slice(1); // Remove the # symbol
+            
+            // Check if route exists
+            if (!this.routes[path]) {
                 throw new Error('Route not found');
             }
 
-            // Check route guard
-            if (routeConfig.guard) {
-                await this.guards[routeConfig.guard]();
+            // Check if user is authenticated for protected routes
+            if (path !== '/login' && path !== '/register' && !AuthService.isLoggedIn()) {
+                window.location.hash = '#/login';
+                return;
             }
 
             // Initialize route
-            if (routeConfig.init) {
-                await routeConfig.init();
-            }
-
-            this.hideLoading();
+            await this.routes[path].init();
+            this.currentRoute = path;
+            
         } catch (error) {
-            this.handleError(error);
+            console.error('Router error:', error);
+            UIService.showNotification(error.message, 'error');
+            if (!AuthService.isLoggedIn()) {
+                window.location.hash = '#/login';
+            }
+        } finally {
+            UIService.hideLoading();
         }
     }
 }; 

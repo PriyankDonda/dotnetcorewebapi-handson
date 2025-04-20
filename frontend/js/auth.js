@@ -45,6 +45,26 @@ const AuthService = {
         return localStorage.getItem('token') !== null;
     },
 
+    // Handle API errors
+    handleApiError(response, defaultMessage) {
+        if (response.status === 401) {
+            this.logout();
+            throw new Error('Your session has expired. Please login again.');
+        } else if (response.status === 403) {
+            throw new Error('Access denied. You do not have permission to perform this action.');
+        } else if (response.status === 404) {
+            throw new Error('The requested resource was not found.');
+        } else if (response.status === 500) {
+            throw new Error('Server error. Please try again later.');
+        } else {
+            return response.json().then(data => {
+                throw new Error(data.message || defaultMessage);
+            }).catch(() => {
+                throw new Error(defaultMessage);
+            });
+        }
+    },
+
     // Generic fetch wrapper with timeout
     async fetchWithTimeout(url, options = {}) {
         const controller = new AbortController();
@@ -56,11 +76,16 @@ const AuthService = {
                 signal: controller.signal
             });
             clearTimeout(timeoutId);
+            
+            if (!response.ok) {
+                return this.handleApiError(response, 'Request failed');
+            }
+            
             return response;
         } catch (error) {
             clearTimeout(timeoutId);
             if (error.name === 'AbortError') {
-                throw new Error('Request timeout');
+                throw new Error('Request timeout. Please check your connection and try again.');
             }
             throw error;
         }
@@ -77,11 +102,6 @@ const AuthService = {
                 },
                 body: JSON.stringify({ username, password })
             });
-
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.message || 'Login failed');
-            }
 
             const data = await response.json();
             if (!data.token) {
@@ -107,11 +127,6 @@ const AuthService = {
                 },
                 body: JSON.stringify({ username, password })
             });
-
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.message || 'Registration failed');
-            }
 
             return await response.json();
         } catch (error) {
@@ -139,26 +154,7 @@ const AuthService = {
                 headers: this.getAuthHeaders()
             });
 
-            const responseText = await response.text();
-            if (!responseText) {
-                throw new Error('Empty response from server');
-            }
-
-            let data;
-            try {
-                data = JSON.parse(responseText);
-            } catch (e) {
-                console.error('JSON parse error:', e);
-                throw new Error('Invalid JSON response from server');
-            }
-
-            if (!response.ok) {
-                if (response.status === 401) {
-                    this.logout();
-                    throw new Error('Session expired. Please login again.');
-                }
-                throw new Error(data.message || 'Failed to get profile');
-            }
+            const data = await response.json();
             
             if (!data) {
                 throw new Error('No profile data received');
@@ -185,11 +181,6 @@ const AuthService = {
                 method: 'GET',
                 headers: this.getAuthHeaders()
             });
-
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.message || 'Failed to get users');
-            }
 
             return await response.json();
         } catch (error) {
