@@ -55,6 +55,17 @@ builder.Services.AddMemoryCache(); // For rate limiting
 // API and Controllers
 builder.Services.AddControllers();
 
+// Add CORS
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(builder =>
+    {
+        builder.AllowAnyOrigin()
+               .AllowAnyMethod()
+               .AllowAnyHeader();
+    });
+});
+
 // Add API versioning
 // builder.Services.AddApiVersioning(options =>
 // {
@@ -150,19 +161,14 @@ else
     app.UseHsts();
 }
 
+// Add CORS middleware before routing and authentication
+app.UseCors();
+
 // Standard middleware
 app.UseHttpsRedirection();
-app.Use((context, next) =>
-{
-    if (!context.Request.IsHttps)
-    {
-        var httpsUrl = $"https://{context.Request.Host.Host}:5001{context.Request.Path}{context.Request.QueryString}";
-        context.Response.Redirect(httpsUrl, permanent: true);
-        return Task.CompletedTask;
-    }
-    return next();
-});
 
+// Serve static files
+app.UseDefaultFiles();
 app.UseStaticFiles();
 
 // Custom middleware
@@ -182,10 +188,14 @@ app.UseSerilogRequestLogging(options =>
 
 app.UseRouting();
 
+// Authentication & Authorization
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+// Add a fallback route to serve index.html for all unmatched routes
+app.MapFallbackToFile("index.html");
 
 // Health checks endpoint
 app.MapHealthChecks("/health", new HealthCheckOptions
