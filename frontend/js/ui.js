@@ -133,13 +133,67 @@ const UIService = {
         if (this.elements.profile) {
             this.elements.profile.style.display = 'block';
             
-            // Update profile information
-            const usernameElement = this.elements.profile.querySelector('.profile-username');
-            if (usernameElement && profile) {
-                usernameElement.textContent = profile.username;
-            }
+            // Format the creation date
+            const createdDate = new Date(profile.createdAt);
+            const formattedDate = createdDate.toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
             
-            // Add more profile details here as needed
+            // Create profile header with username and email
+            const header = document.createElement('div');
+            header.className = 'profile-header';
+            
+            const username = document.createElement('h1');
+            username.className = 'profile-username';
+            username.textContent = profile.username;
+            
+            const email = document.createElement('div');
+            email.className = 'profile-email';
+            email.textContent = profile.email;
+            
+            // Create roles section
+            const roles = document.createElement('div');
+            roles.className = 'profile-roles';
+            profile.roles.forEach(role => {
+                const badge = document.createElement('span');
+                badge.className = 'role-badge';
+                badge.textContent = role;
+                roles.appendChild(badge);
+            });
+            
+            header.appendChild(username);
+            header.appendChild(email);
+            header.appendChild(roles);
+            
+            // Create profile details section
+            const details = document.createElement('div');
+            details.className = 'profile-details';
+            
+            // User ID
+            const idGroup = document.createElement('div');
+            idGroup.className = 'detail-group';
+            idGroup.innerHTML = `
+                <div class="detail-label">User ID</div>
+                <div class="detail-value">${profile.id}</div>
+            `;
+            
+            // Creation Date
+            const dateGroup = document.createElement('div');
+            dateGroup.className = 'detail-group';
+            dateGroup.innerHTML = `
+                <div class="detail-label">Member Since</div>
+                <div class="profile-created">${formattedDate}</div>
+            `;
+            
+            details.appendChild(idGroup);
+            details.appendChild(dateGroup);
+            
+            // Clear and update profile content
+            this.elements.profile.innerHTML = '';
+            this.elements.profile.appendChild(header);
+            this.elements.profile.appendChild(details);
         }
         if (this.elements.dashboard) this.elements.dashboard.style.display = 'none';
         if (this.elements.userList) this.elements.userList.style.display = 'none';
